@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -6,7 +6,6 @@
 
   <title>Upaasana Dandiya — Ticket Scanner</title>
 
-  <!-- QR Scanner Library -->
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
   <style>
@@ -57,15 +56,16 @@
 
     .status {
       margin-top: 20px;
-      padding: 18px;
+      padding: 20px;
       border-radius: 14px;
       background: #292020;
-      font-size: 18px;
-      font-weight: 600;
-      min-height: 58px;
+      font-size: 19px;
+      font-weight: 700;
+      min-height: 70px;
       display: flex;
       align-items: center;
       justify-content: center;
+      text-align: center;
     }
 
     .ticket-id {
@@ -144,8 +144,13 @@
 
   </div>
 
+
   <!-- Hidden Google Form submission -->
-  <iframe name="hiddenFrame" style="display:none;"></iframe>
+
+  <iframe
+    name="hiddenFrame"
+    style="display:none;">
+  </iframe>
 
   <form
     id="ticketForm"
@@ -163,18 +168,43 @@
 
   </form>
 
+
   <script>
+
+    /*
+      PUBLIC VALIDATION CSV
+
+      This is your Validation sheet only.
+      It contains:
+      Ticket ID | Status
+    */
+
+    const VALIDATION_URL =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQe-Xips4JD2GNF49MThoveS4lKir7-XvUGFL9jQoJACOkab6bYQ6XL2b8g_4IIwr4CWxvhOrqiVqrO/pub?gid=856877283&single=true&output=csv";
+
 
     let scanner;
     let scanning = true;
 
-    const statusBox = document.getElementById("status");
-    const ticketIdBox = document.getElementById("ticketId");
-    const scanAgainButton = document.getElementById("scanAgain");
-    const ticketInput = document.getElementById("ticketInput");
-    const ticketForm = document.getElementById("ticketForm");
+
+    const statusBox =
+      document.getElementById("status");
+
+    const ticketIdBox =
+      document.getElementById("ticketId");
+
+    const scanAgainButton =
+      document.getElementById("scanAgain");
+
+    const ticketInput =
+      document.getElementById("ticketInput");
+
+    const ticketForm =
+      document.getElementById("ticketForm");
+
 
     function showStatus(message, type) {
+
       statusBox.textContent = message;
 
       statusBox.classList.remove(
@@ -187,15 +217,20 @@
       statusBox.classList.add(type);
     }
 
+
     function stopScanner() {
+
       if (scanner) {
+
         scanner.clear().catch(function(error) {
           console.log(error);
         });
+
       }
 
       scanning = false;
     }
+
 
     function submitTicket(ticketId) {
 
@@ -203,73 +238,318 @@
 
       ticketForm.submit();
 
-      ticketIdBox.textContent = "Ticket ID: " + ticketId;
-
       showStatus(
-        "✓ SCAN RECORDED",
+        "✓ VALID — ENTRY ALLOWED",
         "success"
       );
 
-      scanAgainButton.style.display = "inline-block";
+      ticketIdBox.textContent =
+        "Ticket ID: " + ticketId;
+
+      scanAgainButton.style.display =
+        "inline-block";
     }
 
-    function onScanSuccess(decodedText) {
+
+    /*
+      Read the published Validation CSV
+      and find the scanned Ticket ID.
+    */
+
+    async function validateTicket(ticketId) {
+
+      try {
+
+        /*
+          Timestamp prevents the browser from
+          reusing an old cached CSV.
+        */
+
+        const url =
+          VALIDATION_URL +
+          "&t=" +
+          Date.now();
+
+
+        const response =
+          await fetch(
+            url,
+            {
+              cache: "no-store"
+            }
+          );
+
+
+        if (!response.ok) {
+          throw new Error(
+            "Validation feed unavailable"
+          );
+        }
+
+
+        const csv =
+          await response.text();
+
+
+        const lines =
+          csv.trim().split(/\r?\n/);
+
+
+        /*
+          Skip header row.
+        */
+
+        for (
+          let i = 1;
+          i < lines.length;
+          i++
+        ) {
+
+          const line =
+            lines[i].trim();
+
+
+          if (!line) {
+            continue;
+          }
+
+
+          /*
+            Our Ticket IDs and statuses do not
+            contain commas, so this simple split
+            is sufficient for this sheet.
+          */
+
+          const parts =
+            line.split(",");
+
+
+          const sheetTicketId =
+            parts[0].trim();
+
+
+          const status =
+            parts[1]
+              ? parts[1].trim()
+              : "";
+
+
+          if (
+            sheetTicketId === ticketId
+          ) {
+
+            return status;
+          }
+
+        }
+
+
+        return "NOT_FOUND";
+
+      }
+
+      catch (error) {
+
+        console.error(
+          "Validation error:",
+          error
+        );
+
+        return "VALIDATION_ERROR";
+      }
+
+    }
+
+
+    /*
+      QR successfully scanned.
+    */
+
+    async function onScanSuccess(decodedText) {
 
       if (!scanning) {
         return;
       }
 
+
       scanning = false;
 
-      const ticketId = decodedText.trim();
+
+      const ticketId =
+        decodedText.trim();
+
 
       /*
-        Our ticket IDs begin with UPN26-
-        This prevents accidentally scanning unrelated QR codes.
+        Basic ticket-format protection.
       */
 
-      if (!ticketId.startsWith("UPN26-")) {
+      if (
+        !ticketId.startsWith("UPN26-")
+      ) {
 
         showStatus(
-          "⚠ This is not a valid Upaasana ticket QR",
+          "⚠ INVALID TICKET",
           "warning"
         );
 
         ticketIdBox.textContent = "";
 
         setTimeout(function() {
+
           scanning = true;
+
         }, 2000);
 
         return;
       }
 
+
+      /*
+        Stop camera while validating.
+      */
+
       stopScanner();
 
-      submitTicket(ticketId);
+
+      ticketIdBox.textContent =
+        "Checking Ticket ID: " +
+        ticketId;
+
+
+      showStatus(
+        "Checking ticket...",
+        "info"
+      );
+
+
+      /*
+        Ask the Validation sheet
+        for the current ticket status.
+      */
+
+      const status =
+        await validateTicket(ticketId);
+
+
+      /*
+        TICKET NOT FOUND
+      */
+
+      if (
+        status === "NOT_FOUND"
+      ) {
+
+        showStatus(
+          "✕ INVALID TICKET — ENTRY DENIED",
+          "error"
+        );
+
+        ticketIdBox.textContent =
+          "Ticket ID: " + ticketId;
+
+        scanAgainButton.style.display =
+          "inline-block";
+
+        return;
+      }
+
+
+      /*
+        TICKET ALREADY USED
+      */
+
+      if (
+        status === "USED" ||
+        status === "ALREADY SCANNED"
+      ) {
+
+        showStatus(
+          "✕ ALREADY SCANNED — ENTRY DENIED",
+          "error"
+        );
+
+        ticketIdBox.textContent =
+          "Ticket ID: " + ticketId;
+
+        scanAgainButton.style.display =
+          "inline-block";
+
+        return;
+      }
+
+
+      /*
+        VALID UNUSED TICKET
+      */
+
+      if (
+        status === "UNUSED"
+      ) {
+
+        submitTicket(ticketId);
+
+        return;
+      }
+
+
+      /*
+        ANY OTHER / UNKNOWN CONDITION
+      */
+
+      showStatus(
+        "⚠ CANNOT VERIFY — TRY AGAIN",
+        "warning"
+      );
+
+      ticketIdBox.textContent =
+        "Ticket ID: " + ticketId;
+
+      scanAgainButton.style.display =
+        "inline-block";
+
     }
+
 
     function onScanFailure(error) {
-      // Normal while camera is searching.
+
+      /*
+        Normal while camera is searching
+        for a QR code.
+      */
+
     }
 
-    scanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        fps: 10,
-        qrbox: {
-          width: 250,
-          height: 250
+
+    /*
+      Start QR scanner.
+    */
+
+    scanner =
+      new Html5QrcodeScanner(
+        "reader",
+        {
+          fps: 10,
+
+          qrbox: {
+            width: 250,
+            height: 250
+          },
+
+          rememberLastUsedCamera: true
         },
-        rememberLastUsedCamera: true
-      },
-      false
-    );
+        false
+      );
+
 
     scanner.render(
       onScanSuccess,
       onScanFailure
     );
+
+
+    /*
+      Scan next ticket.
+    */
 
     scanAgainButton.addEventListener(
       "click",
