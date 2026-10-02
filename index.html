@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Upaasana Dandiya — Ticket Scanner</title>
+
+  <!-- QR Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #160b0b;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .scanner-container {
+      width: 100%;
+      max-width: 520px;
+      text-align: center;
+    }
+
+    .logo-title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      opacity: 0.75;
+      margin-bottom: 20px;
+    }
+
+    .scanner-box {
+      background: white;
+      border-radius: 18px;
+      padding: 15px;
+      overflow: hidden;
+    }
+
+    #reader {
+      width: 100%;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 18px;
+      border-radius: 14px;
+      background: #292020;
+      font-size: 18px;
+      font-weight: 600;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ticket-id {
+      margin-top: 12px;
+      font-size: 14px;
+      word-break: break-all;
+      opacity: 0.8;
+    }
+
+    button {
+      margin-top: 18px;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 22px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background: white;
+      color: #160b0b;
+    }
+
+    .success {
+      background: #164d2b;
+    }
+
+    .error {
+      background: #681d1d;
+    }
+
+    .info {
+      background: #292020;
+    }
+
+    .warning {
+      background: #664b12;
+    }
+
+    .small-note {
+      margin-top: 18px;
+      font-size: 12px;
+      opacity: 0.55;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="scanner-container">
+
+    <div class="logo-title">
+      Upaasana Dandiya
+    </div>
+
+    <div class="subtitle">
+      Official Entry Gate Ticket Scanner
+    </div>
+
+    <div class="scanner-box">
+      <div id="reader"></div>
+    </div>
+
+    <div id="status" class="status info">
+      Point the camera at the ticket QR code
+    </div>
+
+    <div id="ticketId" class="ticket-id"></div>
+
+    <button id="scanAgain" style="display:none;">
+      Scan Next Ticket
+    </button>
+
+    <div class="small-note">
+      Keep the QR code clearly visible inside the scanning box.
+    </div>
+
+  </div>
+
+  <!-- Hidden Google Form submission -->
+  <iframe name="hiddenFrame" style="display:none;"></iframe>
+
+  <form
+    id="ticketForm"
+    action="https://docs.google.com/forms/d/e/1FAIpQLSdm6G8RW7hg2uoInc9vF2kjYgMkebQ-g2aAv1T98jnz4yl6xQ/formResponse"
+    method="POST"
+    target="hiddenFrame"
+    style="display:none;"
+  >
+
+    <input
+      type="text"
+      name="entry.1909939995"
+      id="ticketInput"
+    >
+
+  </form>
+
+  <script>
+
+    let scanner;
+    let scanning = true;
+
+    const statusBox = document.getElementById("status");
+    const ticketIdBox = document.getElementById("ticketId");
+    const scanAgainButton = document.getElementById("scanAgain");
+    const ticketInput = document.getElementById("ticketInput");
+    const ticketForm = document.getElementById("ticketForm");
+
+    function showStatus(message, type) {
+      statusBox.textContent = message;
+
+      statusBox.classList.remove(
+        "success",
+        "error",
+        "warning",
+        "info"
+      );
+
+      statusBox.classList.add(type);
+    }
+
+    function stopScanner() {
+      if (scanner) {
+        scanner.clear().catch(function(error) {
+          console.log(error);
+        });
+      }
+
+      scanning = false;
+    }
+
+    function submitTicket(ticketId) {
+
+      ticketInput.value = ticketId;
+
+      ticketForm.submit();
+
+      ticketIdBox.textContent = "Ticket ID: " + ticketId;
+
+      showStatus(
+        "✓ SCAN RECORDED",
+        "success"
+      );
+
+      scanAgainButton.style.display = "inline-block";
+    }
+
+    function onScanSuccess(decodedText) {
+
+      if (!scanning) {
+        return;
+      }
+
+      scanning = false;
+
+      const ticketId = decodedText.trim();
+
+      /*
+        Our ticket IDs begin with UPN26-
+        This prevents accidentally scanning unrelated QR codes.
+      */
+
+      if (!ticketId.startsWith("UPN26-")) {
+
+        showStatus(
+          "⚠ This is not a valid Upaasana ticket QR",
+          "warning"
+        );
+
+        ticketIdBox.textContent = "";
+
+        setTimeout(function() {
+          scanning = true;
+        }, 2000);
+
+        return;
+      }
+
+      stopScanner();
+
+      submitTicket(ticketId);
+    }
+
+    function onScanFailure(error) {
+      // Normal while camera is searching.
+    }
+
+    scanner = new Html5QrcodeScanner(
+      "reader",
+      {
+        fps: 10,
+        qrbox: {
+          width: 250,
+          height: 250
+        },
+        rememberLastUsedCamera: true
+      },
+      false
+    );
+
+    scanner.render(
+      onScanSuccess,
+      onScanFailure
+    );
+
+    scanAgainButton.addEventListener(
+      "click",
+      function() {
+
+        location.reload();
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
